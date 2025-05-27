@@ -1,0 +1,169 @@
+# 🚚 logistics_ai_mvp_backend.py (Hardened Version)
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from pymongo import MongoClient
+from datetime import datetime
+import os, requests, json, logging
+import openai
+from fastapi.middleware.cors import CORSMiddleware
+
+# ==== Configuration ====
+openai.api_key = os.getenv("OPENAI_API_KEY")
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+FUEL_COST_PER_KM = 3.5  # 💰 Constant
+
+# ==== Setup ====
+app = FastAPI()
+client = MongoClient("mongodb://localhost:27017/")
+db = client["logistics_ai"]
+collection = db["broker_loads"]
+feedback_log = db["feedback_log"]
+
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # ✅ Replace with frontend URL
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ==== Data Models ====
+class Truck(BaseModel):
+    truck_id: str
+    location: str
+    latitude: float
+    longitude: float    
+    capacity: int
+
+class Feedback(BaseModel):
+    truck_id: str
+    load_origin: str
+    load_destination: str
+    ai_score: float
+    action: str
+
+# ==== Helper: Google Maps Distance Matrix ====
+def get_route_eta_distance(origin_lat, origin_lng, pickup_address, drop_address):
+    base = "https://maps.googleapis.com/maps/api/distancematrix/json"
+
+    def query(o, d):
+        try:
+            r = requests.get(base, params={
+                "origins": o,
+                "destinations": d,
+                "key": GOOGLE_MAPS_API_KEY
+            })
+            r.raise_for_status()
+            result = r.json()
+            if result['status'] != 'OK' or not result['rows']:
+                return None
+            element = result['rows'][0]['elements'][0]
+            if element['status'] != 'OK':
+                return None
+            return element
+        except Exception as e:
+            logger.warning(f"Google Maps error for {o} → {d}: {e}")
+            return None
+
+    if not pickup_address or not drop_address:
+        return None
+
+    direct = query(f"{origin_lat},{origin_lng}", drop_address)
+    via = query(f"{origin_lat},{origin_lng}", pickup_address)
+    from_pickup = query(pickup_address, drop_address)
+
+    if not all([direct, via, from_pickup]):
+        return None
+
+    try:
+        direct_km = direct['distance']['value'] / 1000
+        via_km = (via['distance']['value'] + from_pickup['distance']['value']) / 1000
+        direct_min = direct['duration']['value'] / 60
+        via_min = (via['duration']['value'] + from_pickup['duration']['value']) / 60
+
+        return {
+            "direct_km": round(direct_km, 1),
+            "via_km": round(via_km, 1),
+            "extra_km": round(via_km - direct_km, 1),
+            "extra_min": round(via_min - direct_min, 1),
+            "fuel_cost": round((via_km - direct_km) * FUEL_COST_PER_KM, 2)
+        }
+    except Exception as e:
+        logger.error(f"Detour calculation error: {e}", exc_info=True)
+        return None
+
+# ==== Helper: Scoring Function ====
+def score_loads(truck: Truck, all_loads):
+    scored = []
+    for load in all_loads:
+        detour = get_route_eta_distance(
+            origin_lat=truck.latitude,
+            origin_lng=truck.longitude,
+            pickup_address=load.get("pickup_point") or load.get("origin"),
+            drop_address=load.get("destination")
+        )
+        if not detour:
+            continue
+        try:
+            rate_str = load.get("rate", "₹0/km")
+            rate_value = float(rate_str.replace("₹", "").replace("/km", "").strip())
+        except Exception as e:
+            logger.warning(f"Rate parse error: {load.get('rate')}, err: {e}")
+            rate_value = 0
+
+        score = rate_value
+        if "urgent" in load.get("status", "").lower():
+            score += 2
+        score -= detour["fuel_cost"] / 100
+        score -= detour["extra_min"] / 60
+        scored.append({"load": load, "score": round(score, 2), "detour": detour})
+    return scored
+
+# ==== Endpoints ====
+@app.post("/recommend")
+def recommend(truck: Truck):
+    all_loads = list(collection.find({}, {"_id": 0}))
+    scored = score_loads(truck, all_loads)
+    return sorted(scored, key=lambda x: x["score"], reverse=True)
+
+@app.post("/recommend/summary")
+def summary(truck: Truck):
+    all_loads = list(collection.find({}, {"_id": 0}))
+    top = sorted(score_loads(truck, all_loads), key=lambda x: x["score"], reverse=True)[:3]
+    prompt = f"Truck: ({truck.latitude},{truck.longitude}), cap={truck.capacity}. Top: {json.dumps(top)}. Recommend best."
+    try:
+        result = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": "You are a logistics assistant."},
+                      {"role": "user", "content": prompt}]
+        )
+        return {"summary": result["choices"][0]["message"]["content"]}
+    except Exception as e:
+        logger.error(f"OpenAI error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI summary generation failed")
+
+@app.post("/ask-agent")
+def ask_agent(payload: dict):
+    question = payload.get("question", "")
+    loads = list(collection.find({}, {"_id": 0}))[-10:]
+    prompt = f"Recent loads: {json.dumps(loads[:5])}. Q: {question}"
+    try:
+        result = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": "You are a logistics expert."},
+                      {"role": "user", "content": prompt}]
+        )
+        return {"answer": result["choices"][0]["message"]["content"]}
+    except Exception as e:
+        logger.error(f"OpenAI error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Agent answer failed")
+
+@app.post("/feedback")
+def feedback(data: Feedback):
+    feedback_log.insert_one({**data.dict(), "timestamp": datetime.utcnow().isoformat()})
+    return {"status": "feedback recorded"}

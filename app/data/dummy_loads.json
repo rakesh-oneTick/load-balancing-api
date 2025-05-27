@@ -1,0 +1,22 @@
+[
+    {
+        "load_id": "L101",
+        "pickup_point": "Dehradun,India",
+        "destination": "Banglore",
+        "rate": "₹40/km",
+        "status": "available",
+        "cargo_type": "Cargo",
+        "weight_tons": 30.0,
+        "expected_delivery_date": "2025-05-21"
+    },
+    {
+        "load_id": "L102",
+        "pickup_point": "Agra,India",
+        "destination": "Banglore,India",
+        "rate": "₹20/km",
+        "status": "available",
+        "cargo_type": "Cargo",
+        "weight_tons": 18.0,
+        "expected_delivery_date": "2025-05-21"
+    }
+]

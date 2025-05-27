@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+pymongo
+requests
+openai
+python-dotenv
+pydantic-settings
+requests
+dotenv
