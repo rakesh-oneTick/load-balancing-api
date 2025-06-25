@@ -1,0 +1,26 @@
+[
+    {
+        "truck_id": "T123",
+        "load_origin": "Red Fort, Delhi, India",
+        "load_destination": "Taj Mahal, Agra, Uttar Pradesh, India",
+        "ai_score": 0.85,
+        "action": "accepted",
+        "timestamp": "2025-05-17T05:22:16.366777"
+    },
+    {
+        "truck_id": "T123",
+        "load_origin": "Red Fort, Delhi, India",
+        "load_destination": "Taj Mahal, Agra, Uttar Pradesh, India",
+        "ai_score": 0.85,
+        "action": "accepted",
+        "timestamp": "2025-05-17T10:00:45.160037"
+    },
+    {
+        "truck_id": "T123",
+        "load_origin": "Red Fort, Delhi, India",
+        "load_destination": "Taj Mahal, Agra, Uttar Pradesh, India",
+        "ai_score": 10.0,
+        "action": "accepted",
+        "timestamp": "2025-05-17T12:22:36.284219"
+    }
+]
