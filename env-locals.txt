@@ -1,0 +1,11 @@
+OPENAI_API_KEY="api_key"
+
+GOOGLE_MAPS_API_KEY ="key"
+# OPENAI_API_KEY="api_key"
+
+MONGO_URI=mongodb://localhost:27017/
+FRONTEND_ORIGIN="*"
+FUEL_COST_PER_KM=27
+DB_NAME=logistics_ai
+LOADS_COLLECTION=broker_loads
+FEEDBACK_COLLECTION=feedback_log
