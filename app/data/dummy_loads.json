@@ -1,0 +1,32 @@
+[
+  {
+    "load_id": "L101",
+    "pickup_point": "Mumbai,India",
+    "destination": "Delhi,India",
+    "rate": "₹25/km",
+    "status": "available",
+    "cargo_type": "Electronics",
+    "weight_tons": 15.5,
+    "expected_delivery_date": "2025-06-10"
+  },
+  {
+    "load_id": "L102",
+    "pickup_point": "Chennai,India",
+    "destination": "Delhi,India",
+    "rate": "₹22.50/km",
+    "status": "available",
+    "cargo_type": "Textiles",
+    "weight_tons": 10.0,
+    "expected_delivery_date": "2025-06-15"
+  },
+  {
+    "load_id": "L103",
+    "pickup_point": "Pune,India",
+    "destination": "Delhi,India",
+    "rate": "₹30/km",
+    "status": "available",
+    "cargo_type": "Machinery",
+    "weight_tons": 20.0,
+    "expected_delivery_date": "2025-06-20"
+  }
+]
